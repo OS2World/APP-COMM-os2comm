@@ -1,0 +1,75 @@
+os2comm.c - a simple os/2 comm program - version 1.5beta
+
+To use this program, type OS2COMM at the OS/2 prompt,
+followed by the port, baud rate, parity, databits, and stopbits,
+and an optional capture file name:
+
+    OS2COMM  COMx:baud,parity,databits,stopbits  capture-filespec
+
+To end this program, press Alt-X.
+
+While a communications session is in progress, data can be transmitted
+from a file by pressing Alt-F or Alt-A.  The program will prompt for the
+filename, the data in the file will be transmitted, then control will be
+returned to the keyboard.  Using Alt-A performs an ASCII upload - replacing
+CRLF pairs with CRs.  Alt-F sends the file without any translation.
+
+This version of OS2Comm has added logic to receive a file using the
+XModem file transfer protocol.  To receive a file using XModem, first
+tell the remote system to begin sending it, then press Alt-R.  OS2Comm
+will prompt you for the receive filespec.  You may optionally specify a
+drive letter and path.
+
+This program will run only in the protected mode of OS/2.
+It will not run under DOS.
+
+The program contains 3 threads:
+
+  1. main() - This thread calls a COM initialization routine, then
+     opens the COM port and creates the next two threads.  After they
+     have been created, it waits for the keytocom() thread to complete,
+     then exits back to OS/2.
+
+  2. keytocom() - This thread reads characters from the keyboard and
+     sends them to the COM device driver.  When a Alt-Z is received
+     from the keyboard, it signals main() to exit.  When Alt-F or Alt-A is
+     received from the keyboard, it prompts for a filename, then sends
+     the data from the file to the COM port.  It also handles the Alt-R
+     XModem protocol for receiving files.
+
+  3. comtodsp() - This thread reads characters from the COM device
+     driver and displays them on the screen.  It also writes data to
+     the optional capture file.
+
+Three semaphores are used in this version of OS2Comm.  The first,
+main_sem, is used to release the main thread when the keytocom thread
+has received an Alt-X from the keyboard.  This allows the program to end
+gracefully.
+
+The second, buf_sem, is used by the ascii upload routine, filetocom,
+which uses the OS/2 DosWriteAsync function to send data to the COM
+device driver.  A semaphore is required by this function to allow the
+program to know when the buffer has been freed.  Using DosWriteAsync for
+this routine allows the file transfer to proceed as fast as possible.
+
+The third semaphore, ctd_sem, is used to control the comtodisp thread.
+Requesting this semaphore causes the comtodisp thread to block waiting
+for it.  Clearing it allows comtodisp to run again.  This method of
+controlling comtodisp is used instead of the OS/2 DosSuspendThread and
+DosResumeThread functions because it allows control over where the
+thread is when it is blocked.  DosSuspendThread will block the thread no
+matter what it is doing at the time.
+
+ To compile and link this program, at the OS2 prompt, type:
+
+     set PATH=C:\C\BIN;C:\;C:\OS2
+     set INCLUDE=C:\C\INCLUDE
+     set LIB=C:\C\LIB;C:\OS2
+     set TMP=C:\
+     cl os2comm.c /AS
+
+These settings are dependent on the compiler and version.
+This program requires the use of the COM0x.SYS device driver
+in CONFIG.SYS.  Use COM01.SYS for AT class machines.  Use
+COM02.SYS for PS/2 machines.
+
